@@ -11,8 +11,21 @@ export const generateSchedule = async (
   requests: RequestMap = {}
 ): Promise<MonthlyRoster> => {
   
+  // Handle API Key selection in browser environment
+  if (typeof window !== 'undefined' && (window as any).aistudio) {
+    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+       await (window as any).aistudio.openSelectKey();
+    }
+  }
+
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("請先設定 API Key 才能使用 AI 排班功能。");
+  }
+
   const daysInMonth = getDaysInMonth(year, month);
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   
   const systemInstruction = `
     You are an expert Nursing Scheduler AI for a hospital with units 9E and 10E.
@@ -67,7 +80,7 @@ export const generateSchedule = async (
     4. **Legal & Safety Constraints**:
        - **Labor Law**: Max 6 consecutive working days (must have OFF after 6 days).
        - **Rest Interval**: Minimum 11 hours between shifts.
-         - FORBIDDEN: E/E1/C -> A/A1 (Next Day)
+         - FORBIDDEN: E/E1 -> A/A1 (Next Day)
          - FORBIDDEN: N/N1 -> A/A1/E/E1 (Same Day or Next Day without gap)
          - FORBIDDEN: C -> A/A1 (Next Day)
     
@@ -124,7 +137,7 @@ export const generateSchedule = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Updated to valid model
+      model: 'gemini-3-pro-preview', 
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -168,6 +181,10 @@ export const generateSchedule = async (
 
   } catch (error) {
     console.error("AI Scheduling Failed:", error);
+    // Handle the specific key error gracefully if possible, or rethrow
+    if ((error as any).toString().includes("API Key")) {
+        throw new Error("API Key 未設定或無效，請重新整理頁面並選擇 Key。");
+    }
     throw new Error("Failed to generate schedule. Please try again.");
   }
 };

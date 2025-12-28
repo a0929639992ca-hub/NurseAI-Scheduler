@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Nurse, Unit, MajorShiftType } from '../types';
 import { getNurses, saveNurse, deleteNurse } from '../services/storage';
-import { Plus, Trash2, User, Pencil, Save, X } from 'lucide-react';
+import { Plus, Trash2, User, Pencil, Save, X, Upload, Download, FileJson } from 'lucide-react';
 
 const NurseManager: React.FC = () => {
   const [nurses, setNurses] = useState<Nurse[]>([]);
@@ -12,6 +12,7 @@ const NurseManager: React.FC = () => {
     unit: Unit.U9E,
     majorShift: MajorShiftType.A
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     refreshList();
@@ -65,12 +66,94 @@ const NurseManager: React.FC = () => {
     }
   };
 
+  // Export Data to JSON file
+  const handleExport = () => {
+    const dataStr = JSON.stringify(nurses, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nurse_data_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Trigger file input click
+  const triggerImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle File Import
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedData = JSON.parse(content);
+        
+        if (Array.isArray(importedData)) {
+          if (confirm(`準備匯入 ${importedData.length} 筆資料。這將會覆蓋現有的人員名單，確定嗎？`)) {
+            // Validate basic structure
+            const isValid = importedData.every(n => n.name && n.employeeId && n.unit);
+            if (!isValid) throw new Error("檔案格式不正確");
+
+            // Clear existing and save new
+            localStorage.setItem('nurseai_nurses', JSON.stringify(importedData));
+            refreshList();
+            alert("匯入成功！");
+          }
+        } else {
+          throw new Error("JSON 格式不符");
+        }
+      } catch (err) {
+        alert("匯入失敗：檔案格式錯誤");
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
+
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-        <User className="w-6 h-6 text-primary" />
-        人員管理
-      </h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <User className="w-6 h-6 text-primary" />
+          人員管理
+        </h2>
+        
+        <div className="flex gap-2">
+           <input 
+             type="file" 
+             ref={fileInputRef} 
+             onChange={handleImport} 
+             accept=".json" 
+             className="hidden" 
+           />
+           <button 
+             onClick={triggerImport}
+             className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
+             title="從檔案載入資料 (支援 iCloud Drive 檔案)"
+           >
+             <Upload className="w-4 h-4" />
+             匯入備份
+           </button>
+           <button 
+             onClick={handleExport}
+             className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
+             title="下載資料檔 (可存至 iCloud Drive)"
+           >
+             <Download className="w-4 h-4" />
+             匯出備份
+           </button>
+        </div>
+      </div>
 
       {/* Add/Edit Form */}
       <div className={`mb-8 p-4 rounded-lg border transition-colors ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
@@ -188,7 +271,7 @@ const NurseManager: React.FC = () => {
             {nurses.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                  目前沒有資料，請新增人員。
+                  目前沒有資料，請新增人員或匯入備份。
                 </td>
               </tr>
             )}
