@@ -8,12 +8,14 @@ export const generateSchedule = async (
   year: number,
   month: number,
   nurses: Nurse[],
-  requests: RequestMap = {}
+  requests: RequestMap = {},
+  model: string = 'gemini-3-flash-preview' // Default to Flash for better quotas
 ): Promise<MonthlyRoster> => {
   
-  let apiKey = process.env.API_KEY;
+  // 1. Try process.env (Vercel/Node) - support VITE_ prefix for Vite apps
+  let apiKey = process.env.API_KEY || import.meta.env.VITE_API_KEY;
 
-  // 1. Try to get from LocalStorage (for Vercel/Static deployments where env var might be missing)
+  // 2. Try to get from LocalStorage (for Browser manual override)
   if (!apiKey && typeof window !== 'undefined') {
     const storedKey = localStorage.getItem('nurseai_api_key');
     if (storedKey) {
@@ -21,21 +23,17 @@ export const generateSchedule = async (
     }
   }
 
-  // 2. Handle Google AI Studio Environment (IDX/Project IDX)
+  // 3. Handle Google AI Studio Environment (IDX/Project IDX)
   if (!apiKey && typeof window !== 'undefined' && (window as any).aistudio) {
     const hasKey = await (window as any).aistudio.hasSelectedApiKey();
     if (!hasKey) {
        await (window as any).aistudio.openSelectKey();
     }
-    // In AI Studio, the key is injected into process.env after selection, 
-    // but we might need to rely on the underlying mechanism if process.env isn't updated immediately in this scope.
-    // However, usually it requires a reload or the environment wrapper handles it.
-    // For now, we assume if they passed the prompt, the environment is ready or process.env is updated.
     apiKey = process.env.API_KEY; 
   }
 
   if (!apiKey) {
-    throw new Error("未偵測到 API Key。請在「系統設定」中輸入您的 Google Gemini API Key，或確認 Vercel 環境變數設定。");
+    throw new Error("未偵測到 API Key。請在「系統設定」中輸入您的 Google Gemini API Key。");
   }
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -151,7 +149,7 @@ export const generateSchedule = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
+      model: model, 
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -193,9 +191,16 @@ export const generateSchedule = async (
       schedules: processedSchedules
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("AI Scheduling Failed:", error);
-    // Rethrow with clear message
+    
+    // Provide more specific error messages
+    const errorMessage = error.message || error.toString();
+    
+    if (errorMessage.includes("429") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+      throw new Error(`API 額度已滿 (Quota Exceeded)。目前的模型 (${model}) 可能已達到免費限制。請在「系統設定」中切換至其他模型 (如 Flash) 後再試。`);
+    }
+
     throw error;
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Key, Save } from 'lucide-react';
+import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Key, Save, Cpu } from 'lucide-react';
 import NurseManager from './components/NurseManager';
 import RosterView from './components/RosterView';
 import RequestGrid from './components/RequestGrid';
@@ -12,6 +12,12 @@ enum View {
   STAFF = 'staff',
   SETTINGS = 'settings'
 }
+
+const AVAILABLE_MODELS = [
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (推薦 - 快速且額度高)' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (智能 - 額度較低)' },
+  { id: 'gemini-2.5-flash-latest', name: 'Gemini 2.5 Flash (穩定)' },
+];
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.ROSTER);
@@ -26,6 +32,7 @@ const App: React.FC = () => {
   // Settings State
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [savedKeyObfuscated, setSavedKeyObfuscated] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
 
   useEffect(() => {
     // Load roster when date changes
@@ -36,11 +43,15 @@ const App: React.FC = () => {
   }, [currentDate]);
 
   useEffect(() => {
-    // Load existing key for display
+    // Load settings
     const storedKey = localStorage.getItem('nurseai_api_key');
     if (storedKey) {
       setApiKeyInput(storedKey);
       setSavedKeyObfuscated(storedKey.slice(0, 4) + '...' + storedKey.slice(-4));
+    }
+    const storedModel = localStorage.getItem('nurseai_model');
+    if (storedModel) {
+      setSelectedModel(storedModel);
     }
   }, []);
 
@@ -70,7 +81,14 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      const newRoster = await generateSchedule(currentDate.year, currentDate.month, nurses, requests);
+      // Pass selectedModel to the generator
+      const newRoster = await generateSchedule(
+        currentDate.year, 
+        currentDate.month, 
+        nurses, 
+        requests,
+        selectedModel
+      );
       saveRoster(newRoster);
       setActiveRoster(newRoster);
     } catch (err: any) {
@@ -81,6 +99,12 @@ const App: React.FC = () => {
            setCurrentView(View.SETTINGS);
          }
       }
+      // If error suggests quota, switch to settings
+      if (err.message && (err.message.includes("額度") || err.message.includes("Quota"))) {
+        if (confirm("API 額度已滿。是否前往設定頁面更換為 Flash 模型？")) {
+          setCurrentView(View.SETTINGS);
+        }
+     }
     } finally {
       setIsGenerating(false);
     }
@@ -92,16 +116,25 @@ const App: React.FC = () => {
     }
   };
 
-  const saveApiKey = () => {
+  const saveSettings = () => {
+    let msg = "";
+    
+    // Save Key
     if (!apiKeyInput.trim()) {
       localStorage.removeItem('nurseai_api_key');
       setSavedKeyObfuscated('');
-      alert("API Key 已清除");
+      msg += "API Key 已清除。";
     } else {
       localStorage.setItem('nurseai_api_key', apiKeyInput.trim());
       setSavedKeyObfuscated(apiKeyInput.trim().slice(0, 4) + '...' + apiKeyInput.trim().slice(-4));
-      alert("API Key 已儲存 (僅儲存於您的瀏覽器)");
+      msg += "API Key 已儲存。";
     }
+
+    // Save Model
+    localStorage.setItem('nurseai_model', selectedModel);
+    msg += ` 模型已更新為 ${AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name.split(' ')[0]}。`;
+
+    alert(msg);
   };
 
   const NavItem = ({ view, icon: Icon, label }: { view: View, icon: any, label: string }) => (
@@ -251,10 +284,11 @@ const App: React.FC = () => {
                 系統設定
              </h2>
              
+             {/* API Key Section */}
              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
                 <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
                     <Key className="w-5 h-5 text-slate-600" />
-                    Google Gemini API Key 設定
+                    Google Gemini API Key
                 </h3>
                 <p className="text-sm text-slate-500 mb-4">
                     如果您在 Vercel 或其他靜態環境部署，且未設定環境變數，請在此輸入您的 API Key。
@@ -262,7 +296,7 @@ const App: React.FC = () => {
                     Key 將儲存於您的瀏覽器 LocalStorage 中。
                 </p>
                 
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 mb-4">
                     <input 
                         type="password" 
                         value={apiKeyInput}
@@ -270,23 +304,46 @@ const App: React.FC = () => {
                         placeholder="輸入 API Key (例如: AIzaSy...)"
                         className="p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary w-full"
                     />
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">
-                            {savedKeyObfuscated ? `目前已儲存: ${savedKeyObfuscated}` : '尚未儲存 Key'}
-                        </span>
-                        <button 
-                            onClick={saveApiKey}
-                            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2"
-                        >
-                            <Save className="w-4 h-4" />
-                            儲存設定
-                        </button>
+                     <div className="text-xs text-slate-400">
+                        {savedKeyObfuscated ? `目前已儲存: ${savedKeyObfuscated}` : '尚未儲存 Key'}
                     </div>
                 </div>
              </div>
+
+             {/* Model Selection Section */}
+             <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-slate-600" />
+                    AI 模型選擇
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    若遇到「429 Quota Exceeded」錯誤，請切換至 Flash 模型。Pro 模型較聰明但免費額度極低。
+                </p>
+                <div className="flex flex-col gap-3">
+                   <select 
+                     value={selectedModel}
+                     onChange={(e) => setSelectedModel(e.target.value)}
+                     className="p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary w-full"
+                   >
+                     {AVAILABLE_MODELS.map(m => (
+                       <option key={m.id} value={m.id}>{m.name}</option>
+                     ))}
+                   </select>
+                </div>
+             </div>
              
-             <div className="text-sm text-slate-400 text-center">
-                 此 Key 僅用於呼叫 Google Gemini API，不會傳送至其他伺服器。
+             <div className="flex justify-end">
+                <button 
+                    onClick={saveSettings}
+                    className="bg-primary text-white px-6 py-2.5 rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2 font-bold shadow-sm"
+                >
+                    <Save className="w-4 h-4" />
+                    儲存所有設定
+                </button>
+             </div>
+             
+             <div className="mt-4 text-sm text-slate-400 text-center">
+                 設定僅儲存於您的瀏覽器中，不會上傳至任何伺服器。
              </div>
            </div>
         )}
