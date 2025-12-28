@@ -11,17 +11,31 @@ export const generateSchedule = async (
   requests: RequestMap = {}
 ): Promise<MonthlyRoster> => {
   
-  // Handle API Key selection in browser environment
-  if (typeof window !== 'undefined' && (window as any).aistudio) {
+  let apiKey = process.env.API_KEY;
+
+  // 1. Try to get from LocalStorage (for Vercel/Static deployments where env var might be missing)
+  if (!apiKey && typeof window !== 'undefined') {
+    const storedKey = localStorage.getItem('nurseai_api_key');
+    if (storedKey) {
+      apiKey = storedKey;
+    }
+  }
+
+  // 2. Handle Google AI Studio Environment (IDX/Project IDX)
+  if (!apiKey && typeof window !== 'undefined' && (window as any).aistudio) {
     const hasKey = await (window as any).aistudio.hasSelectedApiKey();
     if (!hasKey) {
        await (window as any).aistudio.openSelectKey();
     }
+    // In AI Studio, the key is injected into process.env after selection, 
+    // but we might need to rely on the underlying mechanism if process.env isn't updated immediately in this scope.
+    // However, usually it requires a reload or the environment wrapper handles it.
+    // For now, we assume if they passed the prompt, the environment is ready or process.env is updated.
+    apiKey = process.env.API_KEY; 
   }
 
-  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("請先設定 API Key 才能使用 AI 排班功能。");
+    throw new Error("未偵測到 API Key。請在「系統設定」中輸入您的 Google Gemini API Key，或確認 Vercel 環境變數設定。");
   }
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -181,10 +195,7 @@ export const generateSchedule = async (
 
   } catch (error) {
     console.error("AI Scheduling Failed:", error);
-    // Handle the specific key error gracefully if possible, or rethrow
-    if ((error as any).toString().includes("API Key")) {
-        throw new Error("API Key 未設定或無效，請重新整理頁面並選擇 Key。");
-    }
-    throw new Error("Failed to generate schedule. Please try again.");
+    // Rethrow with clear message
+    throw error;
   }
 };
