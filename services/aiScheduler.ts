@@ -12,14 +12,7 @@ export const generateSchedule = async (
   model: string = 'gemini-3-flash-preview' // Default to Flash for better quotas
 ): Promise<MonthlyRoster> => {
   
-  // Handle Google AI Studio Environment (IDX/Project IDX)
-  if (typeof window !== 'undefined' && (window as any).aistudio) {
-    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-    if (!hasKey) {
-       await (window as any).aistudio.openSelectKey();
-    }
-  }
-
+  // Guideline: The API key must be obtained exclusively from the environment variable process.env.API_KEY.
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {

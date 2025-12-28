@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Key, Save, Cpu } from 'lucide-react';
+import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Save, Cpu } from 'lucide-react';
 import NurseManager from './components/NurseManager';
 import RosterView from './components/RosterView';
 import RequestGrid from './components/RequestGrid';
@@ -30,8 +30,6 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Settings State
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [savedKeyObfuscated, setSavedKeyObfuscated] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
 
   useEffect(() => {
@@ -44,11 +42,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Load settings
-    const storedKey = localStorage.getItem('nurseai_api_key');
-    if (storedKey) {
-      setApiKeyInput(storedKey);
-      setSavedKeyObfuscated(storedKey.slice(0, 4) + '...' + storedKey.slice(-4));
-    }
     const storedModel = localStorage.getItem('nurseai_model');
     if (storedModel) {
       setSelectedModel(storedModel);
@@ -93,12 +86,6 @@ const App: React.FC = () => {
       setActiveRoster(newRoster);
     } catch (err: any) {
       setError(err.message || "排班失敗");
-      // If error suggests auth, switch to settings
-      if (err.message && (err.message.includes("API Key") || err.message.includes("key"))) {
-         if (confirm("AI 排班需要 API Key。是否前往設定頁面輸入？")) {
-           setCurrentView(View.SETTINGS);
-         }
-      }
       // If error suggests quota, switch to settings
       if (err.message && (err.message.includes("額度") || err.message.includes("Quota"))) {
         if (confirm("API 額度已滿。是否前往設定頁面更換為 Flash 模型？")) {
@@ -117,24 +104,9 @@ const App: React.FC = () => {
   };
 
   const saveSettings = () => {
-    let msg = "";
-    
-    // Save Key
-    if (!apiKeyInput.trim()) {
-      localStorage.removeItem('nurseai_api_key');
-      setSavedKeyObfuscated('');
-      msg += "API Key 已清除。";
-    } else {
-      localStorage.setItem('nurseai_api_key', apiKeyInput.trim());
-      setSavedKeyObfuscated(apiKeyInput.trim().slice(0, 4) + '...' + apiKeyInput.trim().slice(-4));
-      msg += "API Key 已儲存。";
-    }
-
     // Save Model
     localStorage.setItem('nurseai_model', selectedModel);
-    msg += ` 模型已更新為 ${AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name.split(' ')[0]}。`;
-
-    alert(msg);
+    alert(`模型已更新為 ${AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name.split(' ')[0]}。`);
   };
 
   const NavItem = ({ view, icon: Icon, label }: { view: View, icon: any, label: string }) => (
@@ -284,32 +256,6 @@ const App: React.FC = () => {
                 系統設定
              </h2>
              
-             {/* API Key Section */}
-             <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
-                <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                    <Key className="w-5 h-5 text-slate-600" />
-                    Google Gemini API Key
-                </h3>
-                <p className="text-sm text-slate-500 mb-4">
-                    如果您在 Vercel 或其他靜態環境部署，且未設定環境變數，請在此輸入您的 API Key。
-                    <br />
-                    Key 將儲存於您的瀏覽器 LocalStorage 中。
-                </p>
-                
-                <div className="flex flex-col gap-3 mb-4">
-                    <input 
-                        type="password" 
-                        value={apiKeyInput}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="輸入 API Key (例如: AIzaSy...)"
-                        className="p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary w-full"
-                    />
-                     <div className="text-xs text-slate-400">
-                        {savedKeyObfuscated ? `目前已儲存: ${savedKeyObfuscated}` : '尚未儲存 Key'}
-                    </div>
-                </div>
-             </div>
-
              {/* Model Selection Section */}
              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
                 <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
