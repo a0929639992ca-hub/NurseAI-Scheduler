@@ -1,0 +1,5 @@
+{
+  "name": "NurseAI Scheduler",
+  "description": "An AI-powered nursing schedule management system supporting complex cross-unit (9E/10E) logic, shift constraints, and labor laws using Google Gemini.",
+  "requestFramePermissions": []
+}
