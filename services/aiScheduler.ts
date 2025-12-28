@@ -12,28 +12,18 @@ export const generateSchedule = async (
   model: string = 'gemini-3-flash-preview' // Default to Flash for better quotas
 ): Promise<MonthlyRoster> => {
   
-  // 1. Try process.env (Vercel/Node) - support VITE_ prefix for Vite apps
-  let apiKey = process.env.API_KEY || import.meta.env.VITE_API_KEY;
-
-  // 2. Try to get from LocalStorage (for Browser manual override)
-  if (!apiKey && typeof window !== 'undefined') {
-    const storedKey = localStorage.getItem('nurseai_api_key');
-    if (storedKey) {
-      apiKey = storedKey;
-    }
-  }
-
-  // 3. Handle Google AI Studio Environment (IDX/Project IDX)
-  if (!apiKey && typeof window !== 'undefined' && (window as any).aistudio) {
+  // Handle Google AI Studio Environment (IDX/Project IDX)
+  if (typeof window !== 'undefined' && (window as any).aistudio) {
     const hasKey = await (window as any).aistudio.hasSelectedApiKey();
     if (!hasKey) {
        await (window as any).aistudio.openSelectKey();
     }
-    apiKey = process.env.API_KEY; 
   }
 
+  const apiKey = process.env.API_KEY;
+
   if (!apiKey) {
-    throw new Error("未偵測到 API Key。請在「系統設定」中輸入您的 Google Gemini API Key。");
+    throw new Error("未偵測到 API Key。請確認環境變數 process.env.API_KEY 已設定。");
   }
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -52,53 +42,46 @@ export const generateSchedule = async (
        - **E1**: Evening shift (16-00) in SUPPORT unit.
        - **N**: Night shift (00-08) in HOME unit.
        - **N1**: Night shift (00-08) in SUPPORT unit.
-       - **C**: Fixed shift (14-22). Always in 9E. (Even 10E staff work 9E for C shift, but code remains C).
-       - **F**: Support shift. Always in 9E.
+       - **C**: Fixed shift (14-22). Always in 9E. 
+       - **F**: Support shift covering C. Always in 9E.
        - **OFF**: Day off.
 
     2. **Shift Code Assignment Logic**:
        - If Nurse is 9E:
-         - Working Day in 9E -> 'A'
-         - Working Day in 10E -> 'A1'
-         - Working Eve in 9E -> 'E'
-         - Working Eve in 10E -> 'E1'
-         - Working Night in 9E -> 'N'
-         - Working Night in 10E -> 'N1'
+         - Working Day in 9E -> 'A', in 10E -> 'A1'
+         - Working Eve in 9E -> 'E', in 10E -> 'E1'
+         - Working Night in 9E -> 'N', in 10E -> 'N1'
        - If Nurse is 10E:
-         - Working Day in 10E -> 'A'
-         - Working Day in 9E -> 'A1'
-         - Working Eve in 10E -> 'E'
-         - Working Eve in 9E -> 'E1'
-         - Working Night in 10E -> 'N'
-         - Working Night in 9E -> 'N1'
+         - Working Day in 10E -> 'A', in 9E -> 'A1'
+         - Working Eve in 10E -> 'E', in 9E -> 'E1'
+         - Working Night in 10E -> 'N', in 9E -> 'N1'
 
     3. **DAILY STAFFING REQUIREMENTS (CRITICAL)**:
        - **Unit 9E**:
-         - A shift (Day): 3 people
-         - E shift (Evening): 2 people
-         - N shift (Night): 2 people
-         - C shift: 1 person
+         - **A shift**: 3 people (9E 'A' + 10E 'A1').
+         - **N shift**: 2 people.
+         - **C/F Coverage (14-22)**: 1 person REQUIRED.
+           - Priority 1: Use code 'C'.
+           - Priority 2: If primary C staff is OFF, use code 'F'.
+           - Priority 3: If 'F' is not possible, add +1 to E shift (Total E becomes 3).
+         - **E shift**: 2 people (Standard). 
+           - *Exception*: If C/F is not covered, E shift must be 3 people.
        - **Unit 10E**:
-         - A shift (Day): 3 people
-         - E shift (Evening): 2 people
-         - N shift (Night): 2 people
-       
-       *Note on Counting*: 
-       - 9E staff working 'A' counts towards 9E's A-shift. 
-       - 10E staff working 'A1' (support at 9E) counts towards 9E's A-shift.
-       - Conversely, 9E staff working 'A1' (support at 10E) counts towards 10E's A-shift.
-       - Ensure these exact numbers are met every single day.
+         - **A shift**: 3 people (10E 'A' + 9E 'A1').
+         - **E shift**: 2 people.
+         - **N shift**: 2 people.
 
-    4. **Legal & Safety Constraints**:
-       - **Labor Law**: Max 6 consecutive working days (must have OFF after 6 days).
+    4. **Legal & Safety Constraints (STRICT)**:
+       - **Max Consecutive Days**: STRICTLY MAX 6 days working. The 7th day MUST be 'OFF'.
+       - **Avoid 6 Days**: Try to keep consecutive working days to 5 or fewer unless absolutely necessary.
        - **Rest Interval**: Minimum 11 hours between shifts.
          - FORBIDDEN: E/E1 -> A/A1 (Next Day)
          - FORBIDDEN: N/N1 -> A/A1/E/E1 (Same Day or Next Day without gap)
-         - FORBIDDEN: C -> A/A1 (Next Day)
+         - FORBIDDEN: C/F -> A/A1 (Next Day)
     
     5. **Nurse Preferences**:
-       - **Major Shift**: If a nurse has a major shift assigned (e.g. 'N'), try to maximize that shift type for them, unless required to fill gaps or strictly forbidden by law.
-       - **Requests**: If a specific day is requested as 'OFF' in the input, you MUST respect it.
+       - **Major Shift**: If a nurse has a major shift assigned (e.g. 'N'), try to maximize that shift type.
+       - **Requests**: If a specific day is requested as 'OFF', you MUST respect it.
 
     6. **Fairness**:
        - Distribute OFF days and unpleasant shifts fairly.
