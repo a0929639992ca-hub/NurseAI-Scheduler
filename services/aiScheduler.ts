@@ -14,15 +14,9 @@ export const generateSchedule = async (
   
   const daysInMonth = getDaysInMonth(year, month);
   
-  // Get the key from process.env.API_KEY
-  const apiKey = process.env.API_KEY;
-  
-  // Validation before creating the SDK instance to prevent immediate failure
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("未偵測到有效的 API Key。若您正在使用 Vercel，請確認已在 Environment Variables 中設定 API_KEY。若您在開發環境中，請確認環境變數已正確注入。");
-  }
-  
-  const ai = new GoogleGenAI({ apiKey });
+  // Rule: Create a new GoogleGenAI instance right before making an API call 
+  // to ensure it uses the most up-to-date API key from the environment/dialog.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   const systemInstruction = `
     You are an expert Nursing Scheduler AI for a hospital with units 9E and 10E.
@@ -100,36 +94,30 @@ export const generateSchedule = async (
     required: ['schedules']
   };
 
-  try {
-    const response = await ai.models.generateContent({
-      model: model, 
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: 'application/json',
-        responseSchema: responseSchema,
+  const response = await ai.models.generateContent({
+    model: model, 
+    contents: prompt,
+    config: {
+      systemInstruction: systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: responseSchema,
+    }
+  });
+
+  const result = JSON.parse(response.text);
+
+  const processedSchedules = result.schedules.map((s: any) => {
+    const scheduleEntries = s.dailyShifts.map((shiftCode: string, index: number) => {
+      const day = index + 1;
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      let validShift = ShiftType.OFF;
+      if (Object.values(ShiftType).includes(shiftCode as ShiftType)) {
+        validShift = shiftCode as ShiftType;
       }
+      return { date: dateStr, shift: validShift };
     });
+    return { nurseId: s.nurseId, schedule: scheduleEntries };
+  });
 
-    const result = JSON.parse(response.text);
-
-    const processedSchedules = result.schedules.map((s: any) => {
-      const scheduleEntries = s.dailyShifts.map((shiftCode: string, index: number) => {
-        const day = index + 1;
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        let validShift = ShiftType.OFF;
-        if (Object.values(ShiftType).includes(shiftCode as ShiftType)) {
-          validShift = shiftCode as ShiftType;
-        }
-        return { date: dateStr, shift: validShift };
-      });
-      return { nurseId: s.nurseId, schedule: scheduleEntries };
-    });
-
-    return { year, month, schedules: processedSchedules };
-
-  } catch (error: any) {
-    console.error("AI Scheduling Failed:", error);
-    throw error;
-  }
+  return { year, month, schedules: processedSchedules };
 };
