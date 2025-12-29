@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Save, Cpu } from 'lucide-react';
+import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Save, Cpu, Key, ExternalLink } from 'lucide-react';
 import NurseManager from './components/NurseManager';
 import RosterView from './components/RosterView';
 import RequestGrid from './components/RequestGrid';
@@ -13,10 +14,17 @@ enum View {
   SETTINGS = 'settings'
 }
 
+// Fixed: Using the existing AIStudio type to avoid conflict with subsequent declarations
+declare global {
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
+
 const AVAILABLE_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (推薦 - 快速且額度高)' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (智能 - 額度較低)' },
-  { id: 'gemini-2.5-flash-latest', name: 'Gemini 2.5 Flash (穩定)' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (推薦)' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (最高智能)' },
+  { id: 'gemini-2.5-flash-lite-latest', name: 'Gemini 2.5 Flash Lite (穩定)' },
 ];
 
 const App: React.FC = () => {
@@ -28,25 +36,38 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
 
   // Settings State
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
 
   useEffect(() => {
-    // Load roster when date changes
     const stored = getRoster(currentDate.year, currentDate.month);
     setActiveRoster(stored);
-    // Reset requests when changing month (or could persist them if needed)
     setRequests({});
   }, [currentDate]);
 
   useEffect(() => {
-    // Load settings
     const storedModel = localStorage.getItem('nurseai_model');
     if (storedModel) {
       setSelectedModel(storedModel);
     }
+    checkApiKey();
   }, []);
+
+  const checkApiKey = async () => {
+    if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      setHasApiKey(hasKey);
+    }
+  };
+
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true); // Assume success after trigger
+    }
+  };
 
   const handleRequestChange = (nurseId: string, day: number, shift: ShiftType | undefined) => {
     setRequests(prev => {
@@ -56,10 +77,7 @@ const App: React.FC = () => {
       } else {
         nurseRequests[day] = shift;
       }
-      return {
-        ...prev,
-        [nurseId]: nurseRequests
-      };
+      return { ...prev, [nurseId]: nurseRequests };
     });
   };
 
@@ -74,7 +92,6 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // Pass selectedModel to the generator
       const newRoster = await generateSchedule(
         currentDate.year, 
         currentDate.month, 
@@ -85,28 +102,28 @@ const App: React.FC = () => {
       saveRoster(newRoster);
       setActiveRoster(newRoster);
     } catch (err: any) {
-      setError(err.message || "排班失敗");
-      // If error suggests quota, switch to settings
-      if (err.message && (err.message.includes("額度") || err.message.includes("Quota"))) {
-        if (confirm("API 額度已滿。是否前往設定頁面更換為 Flash 模型？")) {
-          setCurrentView(View.SETTINGS);
-        }
-     }
+      console.error(err);
+      const msg = err.message || "";
+      if (msg.includes("Requested entity was not found") || msg.includes("API_KEY") || msg.includes("401") || msg.includes("403")) {
+        setError("API 認證失敗。請點擊右上角「連結 API Key」或確認環境變數已設定。");
+        setHasApiKey(false);
+      } else {
+        setError(msg || "排班失敗，請稍後再試。");
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleClearRoster = () => {
-    if (confirm('確定要重新排班嗎？目前的排班表將被清除，並回到預假設定畫面。')) {
+    if (confirm('確定要重新排班嗎？目前的排班表將被清除。')) {
       setActiveRoster(null);
     }
   };
 
   const saveSettings = () => {
-    // Save Model
     localStorage.setItem('nurseai_model', selectedModel);
-    alert(`模型已更新為 ${AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name.split(' ')[0]}。`);
+    alert(`已儲存。`);
   };
 
   const NavItem = ({ view, icon: Icon, label }: { view: View, icon: any, label: string }) => (
@@ -134,9 +151,14 @@ const App: React.FC = () => {
         <h1 className="font-bold text-xl text-primary flex items-center gap-2">
            <Sparkles className="w-5 h-5" /> NurseAI
         </h1>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-          {isMobileMenuOpen ? <X /> : <Menu />}
-        </button>
+        <div className="flex items-center gap-2">
+          {!hasApiKey && window.aistudio && (
+            <button onClick={handleOpenKeyDialog} className="p-2 text-red-500"><Key className="w-5 h-5"/></button>
+          )}
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+            {isMobileMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}
@@ -157,6 +179,18 @@ const App: React.FC = () => {
           </nav>
         </div>
 
+        {window.aistudio && (
+          <div className="px-6 mb-4">
+             <button 
+               onClick={handleOpenKeyDialog}
+               className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-bold border transition-colors ${!hasApiKey ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+             >
+               <Key className="w-4 h-4" />
+               {hasApiKey ? 'API Key 已連結' : '未連結 API Key'}
+             </button>
+          </div>
+        )}
+
         <div className="absolute bottom-0 w-full p-6 bg-slate-50 border-t border-slate-100">
            <p className="text-xs text-slate-400 text-center">
              &copy; {new Date().getFullYear()} NurseAI Scheduler
@@ -167,15 +201,21 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-auto p-4 lg:p-8 pt-16 lg:pt-8">
         
-        {/* Error Message */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 border border-red-200">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+          <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 border border-red-200 shadow-sm">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div className="flex-1 text-sm font-medium">{error}</div>
+            {!hasApiKey && window.aistudio && (
+              <button 
+                onClick={handleOpenKeyDialog}
+                className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold"
+              >
+                立即連結 Key
+              </button>
+            )}
           </div>
         )}
 
-        {/* View Switcher */}
         {currentView === View.ROSTER && (
           <div className="flex flex-col h-full">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -223,7 +263,7 @@ const App: React.FC = () => {
                      ) : (
                        <>
                          <Sparkles className="w-4 h-4" />
-                         確認預假並生成排班
+                         生成排班表
                        </>
                      )}
                    </button>
@@ -256,20 +296,16 @@ const App: React.FC = () => {
                 系統設定
              </h2>
              
-             {/* Model Selection Section */}
              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-6">
                 <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
                     <Cpu className="w-5 h-5 text-slate-600" />
                     AI 模型選擇
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
-                    若遇到「429 Quota Exceeded」錯誤，請切換至 Flash 模型。Pro 模型較聰明但免費額度極低。
-                </p>
                 <div className="flex flex-col gap-3">
                    <select 
                      value={selectedModel}
                      onChange={(e) => setSelectedModel(e.target.value)}
-                     className="p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary w-full"
+                     className="p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary w-full text-sm"
                    >
                      {AVAILABLE_MODELS.map(m => (
                        <option key={m.id} value={m.id}>{m.name}</option>
@@ -277,6 +313,35 @@ const App: React.FC = () => {
                    </select>
                 </div>
              </div>
+
+             {window.aistudio && (
+                <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 mb-6">
+                  <h3 className="text-lg font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                      <Key className="w-5 h-5 text-blue-600" />
+                      API Key 管理
+                  </h3>
+                  <p className="text-sm text-blue-700 mb-4">
+                      本系統使用 Gemini 3 模型。若排班時發生認證錯誤，請確保您已選取一個具備付費專案權限的 API Key。
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={handleOpenKeyDialog}
+                      className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Key className="w-4 h-4" />
+                      重新選取 API Key
+                    </button>
+                    <a 
+                      href="https://ai.google.dev/gemini-api/docs/billing" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline flex items-center justify-center gap-1"
+                    >
+                      查看 Google API 計費說明 <ExternalLink className="w-3 h-3"/>
+                    </a>
+                  </div>
+                </div>
+             )}
              
              <div className="flex justify-end">
                 <button 
@@ -286,10 +351,6 @@ const App: React.FC = () => {
                     <Save className="w-4 h-4" />
                     儲存所有設定
                 </button>
-             </div>
-             
-             <div className="mt-4 text-sm text-slate-400 text-center">
-                 設定僅儲存於您的瀏覽器中，不會上傳至任何伺服器。
              </div>
            </div>
         )}
