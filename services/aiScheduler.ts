@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Nurse, MonthlyRoster, ShiftType, RequestMap } from '../types';
 
@@ -9,14 +10,14 @@ export const generateSchedule = async (
   month: number,
   nurses: Nurse[],
   requests: RequestMap = {},
-  model: string = 'gemini-3-flash-preview'
+  model: string = 'gemini-3-pro-preview'
 ): Promise<MonthlyRoster> => {
   
   const daysInMonth = getDaysInMonth(year, month);
   
-  // Rule: Create a new GoogleGenAI instance right before making an API call 
-  // to ensure it uses the most up-to-date API key from the environment/dialog.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Rule: Create a new GoogleGenAI instance right before making an API call.
+  // ALWAYS use the process.env.API_KEY directly as required by guidelines.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
     You are an expert Nursing Scheduler AI for a hospital with units 9E and 10E.
@@ -104,6 +105,7 @@ export const generateSchedule = async (
     }
   });
 
+  // Extracting text output from response.text property (not method)
   const result = JSON.parse(response.text);
 
   const processedSchedules = result.schedules.map((s: any) => {

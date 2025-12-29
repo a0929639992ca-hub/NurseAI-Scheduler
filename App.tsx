@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Settings, Sparkles, AlertCircle, Menu, X, Undo2, Save, Cpu, Key, ExternalLink } from 'lucide-react';
 import NurseManager from './components/NurseManager';
@@ -13,21 +14,15 @@ enum View {
   SETTINGS = 'settings'
 }
 
-// Define the interface to match the expected global type 'AIStudio'
-interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
-declare global {
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
+/* 
+ * The window.aistudio property is assumed to be pre-configured and accessible.
+ * We cast to any to avoid "Subsequent property declarations must have the same type" errors
+ * that can occur when environmental global definitions collide with local module augmentation.
+ */
 
 const AVAILABLE_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (推薦)' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (最高智能)' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (最高智能 - 推薦)' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (快速)' },
   { id: 'gemini-2.5-flash-lite-latest', name: 'Gemini 2.5 Flash Lite (穩定)' },
 ];
 
@@ -42,8 +37,8 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
 
-  // Settings State
-  const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
+  // Settings State - Default to Gemini 3 Pro for complex reasoning tasks like scheduling
+  const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview');
 
   useEffect(() => {
     const stored = getRoster(currentDate.year, currentDate.month);
@@ -57,24 +52,23 @@ const App: React.FC = () => {
       setSelectedModel(storedModel);
     }
     
-    // Silent check for key status
-    const checkKeyStatus = async () => {
-      const envKey = process.env.API_KEY;
-      const isEnvKeyMissing = !envKey || envKey === "undefined" || envKey === "";
-      
-      if (isEnvKeyMissing && window.aistudio) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } else {
-        setHasApiKey(!isEnvKeyMissing);
+    // Check initial key status silently using window.aistudio helper
+    const checkKey = async () => {
+      const envKey = (process && process.env) ? process.env.API_KEY : undefined;
+      const aistudio = (window as any).aistudio;
+      if (!envKey && aistudio) {
+        const has = await aistudio.hasSelectedApiKey();
+        setHasApiKey(has);
       }
     };
-    checkKeyStatus();
+    checkKey();
   }, []);
 
   const handleOpenKeyDialog = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
+    const aistudio = (window as any).aistudio;
+    if (aistudio) {
+      await aistudio.openSelectKey();
+      // Assume success after triggering key selection dialog
       setHasApiKey(true); 
       setError(null);
     }
@@ -99,19 +93,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // Dynamic Key Check
-    const apiKey = process.env.API_KEY;
-    const isKeyMissing = !apiKey || apiKey === "undefined" || apiKey === "";
-
-    if (isKeyMissing && window.aistudio) {
-        // If key is missing but we have the helper dialog, open it
-        await handleOpenKeyDialog();
-        // After dialog, we proceed. If they cancelled, the SDK call will fail later.
-    } else if (isKeyMissing) {
-        setError("未偵測到 API Key。請確認 Vercel 環境變數 API_KEY 已設定，或在支援的環境中運行。");
-        return;
-    }
-
     setIsGenerating(true);
     setError(null);
 
@@ -126,15 +107,21 @@ const App: React.FC = () => {
       saveRoster(newRoster);
       setActiveRoster(newRoster);
     } catch (err: any) {
-      console.error(err);
+      console.error("Schedule Generation Error:", err);
       const msg = err.message || "";
-      // Handle various API key related errors
-      if (msg.includes("API key") || msg.includes("Requested entity was not found") || msg.includes("401") || msg.includes("403")) {
-        setError("API 認證失敗。請點擊右方按鈕重新連結 API Key。");
+      
+      const aistudio = (window as any).aistudio;
+      // If error is related to API Key / Authentication, prompt user to select a key
+      if (msg.includes("API key") || msg.includes("Requested entity was not found") || msg.includes("401") || msg.includes("403") || msg.includes("not found")) {
         setHasApiKey(false);
-        if (window.aistudio) await handleOpenKeyDialog();
+        if (aistudio) {
+          setError("API 認證失敗。請在彈出的視窗中選取 API Key (必須為付費專案)。");
+          await handleOpenKeyDialog();
+        } else {
+          setError("API Key 驗證失敗。請確認 Vercel 環境變數 API_KEY 設定正確且為有效金鑰。");
+        }
       } else {
-        setError(msg || "排班失敗，請確認網路連線或 API Key 權限。");
+        setError(msg || "排班失敗。請檢查 AI 模型設定或稍後再試。");
       }
     } finally {
       setIsGenerating(false);
@@ -169,6 +156,8 @@ const App: React.FC = () => {
     </button>
   );
 
+  const aistudio = (window as any).aistudio;
+
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
       
@@ -178,7 +167,7 @@ const App: React.FC = () => {
            <Sparkles className="w-5 h-5" /> NurseAI
         </h1>
         <div className="flex items-center gap-2">
-          {!hasApiKey && window.aistudio && (
+          {!hasApiKey && aistudio && (
             <button onClick={handleOpenKeyDialog} className="p-2 text-red-500"><Key className="w-5 h-5"/></button>
           )}
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
@@ -205,7 +194,7 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        {window.aistudio && (
+        {aistudio && (
           <div className="px-6 mb-4">
              <button 
                onClick={handleOpenKeyDialog}
@@ -231,12 +220,12 @@ const App: React.FC = () => {
           <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 border border-red-200 shadow-sm animate-in fade-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 shrink-0" />
             <div className="flex-1 text-sm font-medium">{error}</div>
-            {window.aistudio && (
+            {aistudio && (
               <button 
                 onClick={handleOpenKeyDialog}
                 className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold transition-all"
               >
-                連結 API Key
+                連結 Key
               </button>
             )}
           </div>
@@ -270,7 +259,7 @@ const App: React.FC = () => {
                     className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
                    >
                      <Undo2 className="w-4 h-4" />
-                     清除結果並修改預假
+                     重設預假條件
                    </button>
                  ) : (
                    <button
@@ -284,12 +273,12 @@ const App: React.FC = () => {
                      {isGenerating ? (
                        <>
                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                         AI 運算排班中...
+                         AI 排班中...
                        </>
                      ) : (
                        <>
                          <Sparkles className="w-4 h-4" />
-                         啟動 AI 智能排班
+                         啟動 AI 排班
                        </>
                      )}
                    </button>
@@ -337,9 +326,6 @@ const App: React.FC = () => {
                        <option key={m.id} value={m.id}>{m.name}</option>
                      ))}
                    </select>
-                   <p className="text-[10px] text-slate-400">
-                     ※ Gemini 3 系列能處理更複雜的支援與跨單位排班邏輯。
-                   </p>
                 </div>
              </div>
 
@@ -349,10 +335,10 @@ const App: React.FC = () => {
                       API 認證管理
                   </h3>
                   <p className="text-sm text-blue-700 mb-4">
-                      若您手動在 Vercel 設定了 <code>API_KEY</code> 但系統仍顯示「未偵測到」，這通常是因為瀏覽器端的安全性限制。請點擊下方按鈕連結 API Key 以完成認證。
+                      若系統無法讀取 Vercel 設定的 <code>API_KEY</code>，請點擊下方按鈕手動選取（必須選取付費專案的 Key）。
                   </p>
                   <div className="flex flex-col gap-3">
-                    {window.aistudio && (
+                    {aistudio && (
                       <button 
                         onClick={handleOpenKeyDialog}
                         className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
@@ -367,7 +353,7 @@ const App: React.FC = () => {
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 hover:underline flex items-center justify-center gap-1"
                     >
-                      查看計費說明 (必須使用付費專案的 Key) <ExternalLink className="w-3 h-3"/>
+                      查看計費說明 (Pay-as-you-go) <ExternalLink className="w-3 h-3"/>
                     </a>
                   </div>
                 </div>
@@ -378,7 +364,7 @@ const App: React.FC = () => {
                     className="bg-primary text-white px-6 py-2.5 rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2 font-bold shadow-sm"
                 >
                     <Save className="w-4 h-4" />
-                    儲存系統配置
+                    儲存配置
                 </button>
              </div>
            </div>
