@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Nurse, Unit, MajorShiftType } from '../types';
-import { getNurses, saveNurse, deleteNurse } from '../services/storage';
-import { Plus, Trash2, User, Pencil, Save, X, Upload, Download, FileJson } from 'lucide-react';
+import { getNurses, saveNurse, deleteNurse, importNurses } from '../services/storage';
+import { Plus, Trash2, User, Pencil, Save, X, Upload, Download, FileJson, AlertCircle } from 'lucide-react';
 
 const NurseManager: React.FC = () => {
   const [nurses, setNurses] = useState<Nurse[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Nurse>>({
     name: '',
     employeeId: '',
@@ -24,7 +25,11 @@ const NurseManager: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.employeeId || !formData.unit || !formData.majorShift) return;
+    setError(null);
+    if (!formData.name || !formData.employeeId || !formData.unit || !formData.majorShift) {
+      setError("請填寫所有必填欄位。");
+      return;
+    }
 
     const nurseToSave: Nurse = {
       id: editingId || Date.now().toString(),
@@ -42,6 +47,7 @@ const NurseManager: React.FC = () => {
   const resetForm = () => {
     setFormData({ name: '', employeeId: '', unit: Unit.U9E, majorShift: MajorShiftType.A });
     setEditingId(null);
+    setError(null);
   };
 
   const handleEdit = (nurse: Nurse) => {
@@ -52,7 +58,6 @@ const NurseManager: React.FC = () => {
       unit: nurse.unit,
       majorShift: nurse.majorShift
     });
-    // Scroll to top to see the form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -66,7 +71,6 @@ const NurseManager: React.FC = () => {
     }
   };
 
-  // Export Data to JSON file
   const handleExport = () => {
     const dataStr = JSON.stringify(nurses, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
@@ -80,14 +84,13 @@ const NurseManager: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Trigger file input click
   const triggerImport = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle File Import
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    setError(null);
     if (!file) return;
 
     const reader = new FileReader();
@@ -98,25 +101,22 @@ const NurseManager: React.FC = () => {
         
         if (Array.isArray(importedData)) {
           if (confirm(`準備匯入 ${importedData.length} 筆資料。這將會覆蓋現有的人員名單，確定嗎？`)) {
-            // Validate basic structure
-            const isValid = importedData.every(n => n.name && n.employeeId && n.unit);
-            if (!isValid) throw new Error("檔案格式不正確");
-
-            // Clear existing and save new
-            localStorage.setItem('nurseai_nurses', JSON.stringify(importedData));
+            importNurses(importedData);
             refreshList();
             alert("匯入成功！");
           }
         } else {
-          throw new Error("JSON 格式不符");
+          setError("檔案內容格式不正確：匯入資料必須是一個陣列。");
         }
       } catch (err) {
-        alert("匯入失敗：檔案格式錯誤");
+        setError("匯入失敗：檔案不是有效的 JSON 格式。");
         console.error(err);
       }
     };
+    reader.onerror = () => {
+      setError("檔案讀取發生錯誤。");
+    };
     reader.readAsText(file);
-    // Reset input so same file can be selected again
     event.target.value = '';
   };
 
@@ -139,7 +139,7 @@ const NurseManager: React.FC = () => {
            <button 
              onClick={triggerImport}
              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
-             title="從檔案載入資料 (支援 iCloud Drive 檔案)"
+             title="匯入人員 JSON 檔案"
            >
              <Upload className="w-4 h-4" />
              匯入備份
@@ -147,13 +147,20 @@ const NurseManager: React.FC = () => {
            <button 
              onClick={handleExport}
              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
-             title="下載資料檔 (可存至 iCloud Drive)"
+             title="匯出人員 JSON 檔案"
            >
              <Download className="w-4 h-4" />
              匯出備份
            </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2 text-sm">
+           <AlertCircle className="w-4 h-4" />
+           {error}
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       <div className={`mb-8 p-4 rounded-lg border transition-colors ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>

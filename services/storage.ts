@@ -1,11 +1,11 @@
 import { Nurse, Unit, MonthlyRoster, MajorShiftType } from '../types';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   NURSES: 'nurseai_nurses',
   ROSTERS: 'nurseai_rosters',
 };
 
-// Initial Mock Data - Updated with real data and MajorShiftType.A as default
+// Initial Mock Data
 const INITIAL_NURSES: Nurse[] = [
   { id: '1', employeeId: 'N20169', name: '李道民', unit: Unit.U9E, majorShift: MajorShiftType.A },
   { id: '2', employeeId: 'N16913', name: '陳怡樺', unit: Unit.U9E, majorShift: MajorShiftType.A },
@@ -51,6 +51,19 @@ export const saveNurse = (nurse: Nurse): void => {
   localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(nurses));
 };
 
+export const importNurses = (data: any[]): void => {
+  // Sanitize data: Ensure every nurse has an ID and required fields, provide defaults for missing optional fields
+  const sanitized = data.map((n, index) => ({
+    id: n.id || `imported_${Date.now()}_${index}`,
+    name: n.name || '未知姓名',
+    employeeId: n.employeeId || `EMP_${index}`,
+    unit: (Object.values(Unit).includes(n.unit) ? n.unit : Unit.U9E),
+    majorShift: (Object.values(MajorShiftType).includes(n.majorShift) ? n.majorShift : MajorShiftType.A)
+  }));
+  
+  localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(sanitized));
+};
+
 export const deleteNurse = (id: string): void => {
   const nurses = getNurses();
   const filtered = nurses.filter(n => n.id !== id);
@@ -68,7 +81,6 @@ export const saveRoster = (roster: MonthlyRoster): void => {
   const stored = localStorage.getItem(STORAGE_KEYS.ROSTERS);
   let rosters: MonthlyRoster[] = stored ? JSON.parse(stored) : [];
   
-  // Remove existing roster for this month if exists
   rosters = rosters.filter(r => !(r.year === roster.year && r.month === roster.month));
   rosters.push(roster);
   

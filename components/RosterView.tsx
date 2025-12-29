@@ -17,7 +17,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
 
   // Helper to calculate daily totals
   const getDailyCounts = (dayIndex: number) => {
-    let a = 0, e = 0, n = 0, c = 0;
+    let a = 0, e = 0, n = 0, c = 0, off = 0;
     
     roster.schedules.forEach(s => {
       const shift = s.schedule[dayIndex]?.shift;
@@ -26,10 +26,16 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
       if ([ShiftType.A, ShiftType.A1].includes(shift)) a++;
       if ([ShiftType.E, ShiftType.E1].includes(shift)) e++;
       if ([ShiftType.N, ShiftType.N1].includes(shift)) n++;
-      if ([ShiftType.C, ShiftType.F].includes(shift)) c++; // F covers C
+      if ([ShiftType.C, ShiftType.F].includes(shift)) c++;
+      if (shift === ShiftType.OFF) off++;
     });
 
-    return { a, e, n, c };
+    return { a, e, n, c, off };
+  };
+
+  // Helper to calculate personal total OFF
+  const getPersonalOffCount = (schedule: { shift: ShiftType }[]) => {
+    return schedule.filter(d => d.shift === ShiftType.OFF).length;
   };
 
   // Helper to export CSV
@@ -37,7 +43,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // UTF-8 BOM
     
     // Header
-    const header = ["姓名", "單位", ...days.map(d => `${d}號`)].join(",");
+    const header = ["姓名", "單位", ...days.map(d => `${d}號`), "休假總計"].join(",");
     csvContent += header + "\r\n";
 
     // Rows
@@ -46,7 +52,8 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
       if (!nurse) return;
       
       const shifts = s.schedule.map(d => d.shift).join(",");
-      const row = `${nurse.name},${nurse.unit},${shifts}`;
+      const offTotal = getPersonalOffCount(s.schedule);
+      const row = `${nurse.name},${nurse.unit},${shifts},${offTotal}`;
       csvContent += row + "\r\n";
     });
 
@@ -86,6 +93,9 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                   {d}
                 </th>
               ))}
+              <th className="px-3 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider border-b bg-blue-50 w-20">
+                休假總計
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -95,7 +105,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
 
               return (
                 <tr key={schedule.nurseId} className="hover:bg-slate-50 transition-colors">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 group-hover:bg-slate-50 border-b">
+                  <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 border-b">
                     <div className="font-medium text-slate-900 text-sm">{nurse.name}</div>
                     <div className="text-xs text-slate-500">{nurse.unit}</div>
                   </td>
@@ -109,6 +119,9 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                       </div>
                     </td>
                   ))}
+                  <td className="p-1 border-b text-center bg-blue-50/30 font-bold text-blue-700">
+                    {getPersonalOffCount(schedule.schedule)}
+                  </td>
                 </tr>
               );
             })}
@@ -125,6 +138,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).a}
                  </td>
                ))}
+               <td className="bg-slate-100 border-t border-slate-300"></td>
              </tr>
              {/* Row for C */}
              <tr>
@@ -136,6 +150,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).c}
                  </td>
                ))}
+               <td className="bg-slate-100"></td>
              </tr>
              {/* Row for E */}
              <tr>
@@ -147,6 +162,7 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).e}
                  </td>
                ))}
+               <td className="bg-slate-100"></td>
              </tr>
              {/* Row for N */}
              <tr>
@@ -158,6 +174,19 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).n}
                  </td>
                ))}
+               <td className="bg-slate-100"></td>
+             </tr>
+             {/* Row for OFF Total Daily */}
+             <tr className="text-slate-500 bg-white">
+               <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 border-r border-slate-200 italic">
+                  每日休假人數
+               </td>
+               {days.map((_, idx) => (
+                 <td key={`off-${idx}`} className="text-center py-2 border-r border-slate-200">
+                   {getDailyCounts(idx).off}
+                 </td>
+               ))}
+               <td className="bg-slate-50"></td>
              </tr>
           </tfoot>
         </table>
