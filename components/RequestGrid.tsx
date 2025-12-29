@@ -15,8 +15,6 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
 
   const toggleRequest = (nurseId: string, day: number) => {
     const current = requests[nurseId]?.[day];
-    // Toggle between OFF and undefined (Available)
-    // Future expansion: could cycle through Fixed Day/Fixed Night etc.
     if (current === ShiftType.OFF) {
       onChange(nurseId, day, undefined);
     } else {
@@ -26,7 +24,7 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full border border-yellow-200">
-      <div className="p-4 border-b border-yellow-200 bg-yellow-50 flex justify-between items-center">
+      <div className="p-4 border-b border-yellow-200 bg-yellow-50 flex justify-between items-center shrink-0">
         <div>
           <h3 className="text-lg font-bold text-yellow-800">
             {year}年 {month}月 預假/指定班別
@@ -37,26 +35,26 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
         </div>
       </div>
       
-      <div className="overflow-x-auto flex-1">
-        <table className="min-w-full divide-y divide-slate-200 border-collapse">
-          <thead>
+      <div className="overflow-auto flex-1 relative">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead className="sticky top-0 z-30">
             <tr>
-              <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r w-24">
+              <th className="sticky left-0 top-0 z-40 bg-slate-100 px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-r border-b border-slate-300 min-w-[120px] whitespace-nowrap">
                 姓名 (大班)
               </th>
               {days.map(d => (
-                <th key={d} className="px-1 py-2 text-center text-xs font-medium text-slate-500 w-10 min-w-[40px] border-r border-slate-100">
+                <th key={d} className="bg-slate-100 px-1 py-3 text-center text-xs font-bold text-slate-600 w-10 min-w-[40px] border-r border-b border-slate-300">
                   {d}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
+          <tbody className="bg-white">
             {nurses.map(nurse => (
-              <tr key={nurse.id} className="hover:bg-slate-50 transition-colors">
-                <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 group-hover:bg-slate-50">
-                  <div className="font-medium text-slate-900 text-sm">{nurse.name}</div>
-                  <div className="text-xs text-slate-500">{nurse.unit} / {nurse.majorShift}</div>
+              <tr key={nurse.id} className="hover:bg-yellow-50/50 transition-colors group">
+                <td className="sticky left-0 z-20 bg-white group-hover:bg-yellow-50 px-4 py-2 border-r border-b border-slate-200 whitespace-nowrap shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                  <div className="font-bold text-slate-900 text-sm">{nurse.name}</div>
+                  <div className="text-[10px] text-slate-500">{nurse.unit} · {nurse.majorShift}</div>
                 </td>
                 {days.map(day => {
                   const shift = requests[nurse.id]?.[day];
@@ -65,12 +63,12 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
                       key={day} 
                       onClick={() => toggleRequest(nurse.id, day)}
                       className={`
-                        p-1 border-r border-slate-100 text-center cursor-pointer hover:bg-slate-100 transition-colors
-                        ${shift === ShiftType.OFF ? 'bg-gray-200' : ''}
+                        p-1 border-r border-b border-slate-100 text-center cursor-pointer hover:bg-yellow-100 transition-colors
+                        ${shift === ShiftType.OFF ? 'bg-slate-200' : ''}
                       `}
                     >
                       {shift ? (
-                        <div className="w-8 h-8 mx-auto flex items-center justify-center rounded text-xs font-bold text-gray-500">
+                        <div className="w-8 h-8 mx-auto flex items-center justify-center rounded text-xs font-black text-slate-600">
                           {shift}
                         </div>
                       ) : (

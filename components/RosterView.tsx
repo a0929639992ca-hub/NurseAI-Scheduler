@@ -67,8 +67,8 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full border border-slate-200">
+      <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
         <h3 className="text-lg font-bold text-slate-800">
           {roster.year}年 {roster.month}月 排班表
         </h3>
@@ -81,45 +81,45 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
         </button>
       </div>
       
-      <div className="overflow-x-auto flex-1">
-        <table className="min-w-full divide-y divide-slate-200 border-collapse">
-          <thead>
+      <div className="overflow-auto flex-1 relative">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead className="sticky top-0 z-30">
             <tr>
-              <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r w-24 border-b">
-                姓名
+              <th className="sticky left-0 top-0 z-40 bg-slate-100 px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-r border-b border-slate-300 min-w-[120px] whitespace-nowrap">
+                姓名 / 單位
               </th>
               {days.map(d => (
-                <th key={d} className="px-1 py-2 text-center text-xs font-medium text-slate-500 w-10 min-w-[40px] border-r border-b border-slate-100 bg-slate-50">
+                <th key={d} className="bg-slate-100 px-1 py-3 text-center text-xs font-bold text-slate-600 w-10 min-w-[40px] border-r border-b border-slate-300">
                   {d}
                 </th>
               ))}
-              <th className="px-3 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider border-b bg-blue-50 w-20">
+              <th className="sticky right-0 top-0 z-30 bg-blue-100 px-3 py-3 text-center text-xs font-bold text-blue-700 uppercase tracking-wider border-b border-slate-300 w-20 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
                 休假總計
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
+          <tbody className="bg-white">
             {roster.schedules.map(schedule => {
               const nurse = getNurseInfo(schedule.nurseId);
               if (!nurse) return null;
 
               return (
-                <tr key={schedule.nurseId} className="hover:bg-slate-50 transition-colors">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 border-b">
-                    <div className="font-medium text-slate-900 text-sm">{nurse.name}</div>
-                    <div className="text-xs text-slate-500">{nurse.unit}</div>
+                <tr key={schedule.nurseId} className="hover:bg-blue-50/50 transition-colors group">
+                  <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50 px-4 py-2 border-r border-b border-slate-200 whitespace-nowrap shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                    <div className="font-bold text-slate-900 text-sm">{nurse.name}</div>
+                    <div className="text-[10px] text-slate-500">{nurse.unit} · {nurse.majorShift}</div>
                   </td>
                   {schedule.schedule.map((day, idx) => (
                     <td key={idx} className="p-1 border-r border-b border-slate-100 text-center">
                       <div className={`
-                        w-8 h-8 mx-auto flex items-center justify-center rounded text-sm font-bold border
+                        w-8 h-8 mx-auto flex items-center justify-center rounded text-xs font-bold border
                         ${SHIFT_COLORS[day.shift]}
                       `}>
                         {day.shift}
                       </div>
                     </td>
                   ))}
-                  <td className="p-1 border-b text-center bg-blue-50/30 font-bold text-blue-700">
+                  <td className="sticky right-0 z-20 bg-blue-50/30 group-hover:bg-blue-50 p-1 border-b border-slate-200 text-center font-bold text-blue-700 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
                     {getPersonalOffCount(schedule.schedule)}
                   </td>
                 </tr>
@@ -127,10 +127,10 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
             })}
           </tbody>
           {/* Summary Footer */}
-          <tfoot className="bg-slate-50 font-semibold text-xs text-slate-700">
+          <tfoot className="sticky bottom-0 z-30 bg-slate-50 font-bold text-xs text-slate-700">
              {/* Row for A */}
-             <tr>
-               <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 border-r border-t border-slate-300">
+             <tr className="bg-slate-50">
+               <td className="sticky left-0 z-40 bg-slate-100 px-4 py-2 border-r border-t border-slate-300 whitespace-nowrap">
                   白班 (A+A1)
                </td>
                {days.map((_, idx) => (
@@ -138,11 +138,11 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).a}
                  </td>
                ))}
-               <td className="bg-slate-100 border-t border-slate-300"></td>
+               <td className="sticky right-0 bg-slate-100 border-t border-slate-300"></td>
              </tr>
              {/* Row for C */}
-             <tr>
-               <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 border-r border-slate-200">
+             <tr className="bg-slate-50">
+               <td className="sticky left-0 z-40 bg-slate-100 px-4 py-2 border-r border-slate-200 whitespace-nowrap">
                   C班 (C+F)
                </td>
                {days.map((_, idx) => (
@@ -150,11 +150,11 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).c}
                  </td>
                ))}
-               <td className="bg-slate-100"></td>
+               <td className="sticky right-0 bg-slate-100"></td>
              </tr>
              {/* Row for E */}
-             <tr>
-               <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 border-r border-slate-200">
+             <tr className="bg-slate-50">
+               <td className="sticky left-0 z-40 bg-slate-100 px-4 py-2 border-r border-slate-200 whitespace-nowrap">
                   小夜 (E+E1)
                </td>
                {days.map((_, idx) => (
@@ -162,11 +162,11 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).e}
                  </td>
                ))}
-               <td className="bg-slate-100"></td>
+               <td className="sticky right-0 bg-slate-100"></td>
              </tr>
              {/* Row for N */}
-             <tr>
-               <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 border-r border-slate-200">
+             <tr className="bg-slate-50">
+               <td className="sticky left-0 z-40 bg-slate-100 px-4 py-2 border-r border-slate-200 whitespace-nowrap">
                   大夜 (N+N1)
                </td>
                {days.map((_, idx) => (
@@ -174,29 +174,29 @@ const RosterView: React.FC<RosterViewProps> = ({ roster, nurses }) => {
                    {getDailyCounts(idx).n}
                  </td>
                ))}
-               <td className="bg-slate-100"></td>
+               <td className="sticky right-0 bg-slate-100"></td>
              </tr>
              {/* Row for OFF Total Daily */}
-             <tr className="text-slate-500 bg-white">
-               <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 border-r border-slate-200 italic">
+             <tr className="bg-white text-slate-500 italic">
+               <td className="sticky left-0 z-40 bg-slate-50 px-4 py-2 border-r border-t border-slate-300 whitespace-nowrap">
                   每日休假人數
                </td>
                {days.map((_, idx) => (
-                 <td key={`off-${idx}`} className="text-center py-2 border-r border-slate-200">
+                 <td key={`off-${idx}`} className="text-center py-2 border-r border-t border-slate-200">
                    {getDailyCounts(idx).off}
                  </td>
                ))}
-               <td className="bg-slate-50"></td>
+               <td className="sticky right-0 bg-slate-50 border-t border-slate-300"></td>
              </tr>
           </tfoot>
         </table>
       </div>
       
-      <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-500">
-        <div className="flex flex-wrap gap-4">
+      <div className="p-3 border-t border-slate-200 bg-slate-50 text-[10px] text-slate-500 shrink-0">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
           {Object.values(ShiftType).map(type => (
             <div key={type} className="flex items-center gap-1">
-              <div className={`w-4 h-4 rounded border ${SHIFT_COLORS[type]}`}></div>
+              <div className={`w-3 h-3 rounded border ${SHIFT_COLORS[type]}`}></div>
               <span>{type}</span>
             </div>
           ))}
