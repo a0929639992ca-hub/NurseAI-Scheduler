@@ -14,10 +14,13 @@ enum View {
   SETTINGS = 'settings'
 }
 
-// Fixed: Using the existing AIStudio type to avoid conflict with subsequent declarations
+// Use inline type definition for window.aistudio to avoid naming collisions with pre-existing global types
 declare global {
   interface Window {
-    aistudio?: AIStudio;
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
   }
 }
 
@@ -52,20 +55,31 @@ const App: React.FC = () => {
     if (storedModel) {
       setSelectedModel(storedModel);
     }
-    checkApiKey();
+    
+    // Initial check for key
+    const checkInitialKey = async () => {
+      const envKey = process.env.API_KEY;
+      if (!envKey || envKey === "undefined" || envKey === "") {
+        if (window.aistudio) {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          setHasApiKey(false);
+          setError("未偵測到 API Key。請確認您的 Vercel 或環境變數中已正確設定 API_KEY。");
+        }
+      } else {
+        setHasApiKey(true);
+      }
+    };
+    
+    checkInitialKey();
   }, []);
-
-  const checkApiKey = async () => {
-    if (window.aistudio) {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setHasApiKey(hasKey);
-    }
-  };
 
   const handleOpenKeyDialog = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      setHasApiKey(true); // Assume success after trigger
+      setHasApiKey(true); 
+      setError(null);
     }
   };
 
@@ -88,6 +102,17 @@ const App: React.FC = () => {
       return;
     }
 
+    // Double check key existence right before generating
+    const apiKey = process.env.API_KEY;
+    if (!apiKey || apiKey === "undefined" || apiKey === "") {
+        if (window.aistudio) {
+            await handleOpenKeyDialog();
+        } else {
+            setError("API Key 缺失。請在 Vercel 專案設定中的 Environment Variables 加入 API_KEY。");
+            return;
+        }
+    }
+
     setIsGenerating(true);
     setError(null);
 
@@ -104,8 +129,8 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       const msg = err.message || "";
-      if (msg.includes("Requested entity was not found") || msg.includes("API_KEY") || msg.includes("401") || msg.includes("403")) {
-        setError("API 認證失敗。請點擊右上角「連結 API Key」或確認環境變數已設定。");
+      if (msg.includes("API Key") || msg.includes("Requested entity was not found") || msg.includes("401") || msg.includes("403")) {
+        setError("API 認證失敗。如果您正在 Vercel，請確認已設定 API_KEY；或點擊下方按鈕連結。");
         setHasApiKey(false);
       } else {
         setError(msg || "排班失敗，請稍後再試。");
@@ -205,7 +230,7 @@ const App: React.FC = () => {
           <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 border border-red-200 shadow-sm">
             <AlertCircle className="w-5 h-5 shrink-0" />
             <div className="flex-1 text-sm font-medium">{error}</div>
-            {!hasApiKey && window.aistudio && (
+            {window.aistudio && !hasApiKey && (
               <button 
                 onClick={handleOpenKeyDialog}
                 className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold"
@@ -314,23 +339,26 @@ const App: React.FC = () => {
                 </div>
              </div>
 
-             {window.aistudio && (
-                <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 mb-6">
+             <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 mb-6">
                   <h3 className="text-lg font-semibold text-blue-800 mb-2 flex items-center gap-2">
                       <Key className="w-5 h-5 text-blue-600" />
                       API Key 管理
                   </h3>
                   <p className="text-sm text-blue-700 mb-4">
-                      本系統使用 Gemini 3 模型。若排班時發生認證錯誤，請確保您已選取一個具備付費專案權限的 API Key。
+                      {window.aistudio 
+                        ? "本系統偵測到 AI Studio 環境。若排班失敗，請點擊下方按鈕重新選取 API Key。" 
+                        : "若您在 Vercel 部署，請確保專案設定中已加入 API_KEY 環境變數。"}
                   </p>
                   <div className="flex flex-col gap-3">
-                    <button 
-                      onClick={handleOpenKeyDialog}
-                      className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Key className="w-4 h-4" />
-                      重新選取 API Key
-                    </button>
+                    {window.aistudio && (
+                      <button 
+                        onClick={handleOpenKeyDialog}
+                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Key className="w-4 h-4" />
+                        連結 API Key
+                      </button>
+                    )}
                     <a 
                       href="https://ai.google.dev/gemini-api/docs/billing" 
                       target="_blank" 
@@ -341,7 +369,6 @@ const App: React.FC = () => {
                     </a>
                   </div>
                 </div>
-             )}
              
              <div className="flex justify-end">
                 <button 

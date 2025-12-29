@@ -14,9 +14,15 @@ export const generateSchedule = async (
   
   const daysInMonth = getDaysInMonth(year, month);
   
-  // Directly use the process.env.API_KEY as per the platform requirements.
-  // The SDK will handle missing keys or invalid authentication.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Get the key from process.env.API_KEY
+  const apiKey = process.env.API_KEY;
+  
+  // Validation before creating the SDK instance to prevent immediate failure
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    throw new Error("未偵測到有效的 API Key。若您正在使用 Vercel，請確認已在 Environment Variables 中設定 API_KEY。若您在開發環境中，請確認環境變數已正確注入。");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
     You are an expert Nursing Scheduler AI for a hospital with units 9E and 10E.
