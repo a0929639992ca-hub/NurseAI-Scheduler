@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Nurse, Unit, MajorShiftType } from '../types';
-import { getNurses, saveNurse, deleteNurse, importNurses } from '../services/storage';
-import { Plus, Trash2, User, Pencil, Save, X, Upload, Download, FileJson, AlertCircle } from 'lucide-react';
+import { getNurses, saveNurse, deleteNurse, importNurses, reorderNurses } from '../services/storage';
+import { Plus, Trash2, User, Pencil, Save, X, Upload, Download, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
 
 const NurseManager: React.FC = () => {
   const [nurses, setNurses] = useState<Nurse[]>([]);
@@ -42,6 +42,17 @@ const NurseManager: React.FC = () => {
     saveNurse(nurseToSave);
     resetForm();
     refreshList();
+  };
+
+  const moveNurse = (index: number, direction: 'up' | 'down') => {
+    const newNurses = [...nurses];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newNurses.length) return;
+    
+    [newNurses[index], newNurses[targetIndex]] = [newNurses[targetIndex], newNurses[index]];
+    setNurses(newNurses);
+    reorderNurses(newNurses);
   };
 
   const resetForm = () => {
@@ -100,10 +111,10 @@ const NurseManager: React.FC = () => {
         const importedData = JSON.parse(content);
         
         if (Array.isArray(importedData)) {
-          if (confirm(`準備匯入 ${importedData.length} 筆資料。這將會覆蓋現有的人員名單，確定嗎？`)) {
+          if (confirm(`準備匯入 ${importedData.length} 筆資料。這將會覆蓋並取代現有人員順序，確定嗎？`)) {
             importNurses(importedData);
             refreshList();
-            alert("匯入成功！");
+            alert("匯入成功！已套用匯入檔案之人員排序。");
           }
         } else {
           setError("檔案內容格式不正確：匯入資料必須是一個陣列。");
@@ -121,7 +132,7 @@ const NurseManager: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
+    <div className="p-6 bg-white rounded-lg shadow-md max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <User className="w-6 h-6 text-primary" />
@@ -139,7 +150,6 @@ const NurseManager: React.FC = () => {
            <button 
              onClick={triggerImport}
              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
-             title="匯入人員 JSON 檔案"
            >
              <Upload className="w-4 h-4" />
              匯入備份
@@ -147,7 +157,6 @@ const NurseManager: React.FC = () => {
            <button 
              onClick={handleExport}
              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded hover:bg-slate-200 text-sm transition-colors"
-             title="匯出人員 JSON 檔案"
            >
              <Download className="w-4 h-4" />
              匯出備份
@@ -173,7 +182,7 @@ const NurseManager: React.FC = () => {
                 <button 
                   type="button"
                   onClick={resetForm} 
-                  className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1 px-2 py-1 hover:bg-slate-200 rounded transition-colors"
+                  className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1 px-2 py-1 hover:bg-slate-200 rounded"
                 >
                     <X className="w-4 h-4" /> 取消編輯
                 </button>
@@ -181,32 +190,30 @@ const NurseManager: React.FC = () => {
         </div>
 
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">姓名</label>
+          <div className="md:col-span-1">
+            <label className="block text-xs font-medium text-slate-500 mb-1">姓名</label>
             <input
               type="text"
-              className="w-full border-slate-300 rounded-md shadow-sm p-2 border focus:ring-primary focus:border-primary"
+              className="w-full border-slate-300 rounded-md p-2 border text-sm"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
-              placeholder="請輸入姓名"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">員工代號</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">員工代號</label>
             <input
               type="text"
-              className="w-full border-slate-300 rounded-md shadow-sm p-2 border focus:ring-primary focus:border-primary"
+              className="w-full border-slate-300 rounded-md p-2 border text-sm"
               value={formData.employeeId}
               onChange={e => setFormData({ ...formData, employeeId: e.target.value })}
-              placeholder="例如: N001"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">單位</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">單位</label>
             <select
-              className="w-full border-slate-300 rounded-md shadow-sm p-2 border focus:ring-primary focus:border-primary"
+              className="w-full border-slate-300 rounded-md p-2 border text-sm"
               value={formData.unit}
               onChange={e => setFormData({ ...formData, unit: e.target.value as Unit })}
             >
@@ -215,25 +222,25 @@ const NurseManager: React.FC = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">當月大班</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">大班</label>
             <select
-              className="w-full border-slate-300 rounded-md shadow-sm p-2 border focus:ring-primary focus:border-primary"
+              className="w-full border-slate-300 rounded-md p-2 border text-sm"
               value={formData.majorShift}
               onChange={e => setFormData({ ...formData, majorShift: e.target.value as MajorShiftType })}
             >
               <option value={MajorShiftType.A}>A (白班)</option>
               <option value={MajorShiftType.E}>E (小夜)</option>
               <option value={MajorShiftType.N}>N (大夜)</option>
-              <option value={MajorShiftType.C}>C (C班 14-22)</option>
-              <option value={MajorShiftType.F}>F (F班 支援)</option>
+              <option value={MajorShiftType.C}>C (C班)</option>
+              <option value={MajorShiftType.F}>F (F班)</option>
             </select>
           </div>
           <div className="flex items-end">
             <button
               type="submit"
-              className={`w-full text-white p-2 rounded-md transition-colors flex items-center justify-center gap-2 ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+              className={`w-full text-white p-2 rounded-md transition-colors font-bold text-sm ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-4 h-4 inline mr-1" />
               {editingId ? '更新' : '儲存'}
             </button>
           </div>
@@ -241,28 +248,48 @@ const NurseManager: React.FC = () => {
       </div>
 
       {/* List */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto border border-slate-200 rounded-lg">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">姓名</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">代號</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">單位</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">大班</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">排序</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">姓名</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">代號</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">單位</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">大班</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">操作</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {nurses.map((nurse) => (
+            {nurses.map((nurse, idx) => (
               <tr key={nurse.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{nurse.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{nurse.employeeId}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{nurse.unit}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{nurse.majorShift}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => moveNurse(idx, 'up')}
+                      disabled={idx === 0}
+                      className="p-1 hover:bg-slate-200 rounded disabled:opacity-30"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => moveNurse(idx, 'down')}
+                      disabled={idx === nurses.length - 1}
+                      className="p-1 hover:bg-slate-200 rounded disabled:opacity-30"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-slate-400 ml-1">{idx + 1}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-slate-900">{nurse.name}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{nurse.employeeId}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{nurse.unit}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 font-medium">{nurse.majorShift}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                   <button
                     onClick={() => handleEdit(nurse)}
-                    className="text-blue-600 hover:text-blue-900 mr-4"
+                    className="text-blue-600 hover:text-blue-900 mr-3"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -275,13 +302,6 @@ const NurseManager: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {nurses.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                  目前沒有資料，請新增人員或匯入備份。
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

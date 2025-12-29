@@ -24,13 +24,13 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full border border-yellow-200">
-      <div className="p-4 border-b border-yellow-200 bg-yellow-50 flex justify-between items-center shrink-0">
+      <div className="p-3 border-b border-yellow-200 bg-yellow-50 flex justify-between items-center shrink-0">
         <div>
-          <h3 className="text-lg font-bold text-yellow-800">
-            {year}年 {month}月 預假/指定班別
+          <h3 className="text-md font-bold text-yellow-800">
+            {year}年 {month}月 預假設定
           </h3>
-          <p className="text-xs text-yellow-600 mt-1">
-            點擊格子設定「OFF」(預假)。AI 排班時將強制遵守這些設定。
+          <p className="text-[10px] text-yellow-600 mt-0.5 font-medium">
+            點擊格子設定「OFF」。系統將遵循此順序進行排班。
           </p>
         </div>
       </div>
@@ -39,11 +39,11 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
         <table className="min-w-full border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             <tr>
-              <th className="sticky left-0 top-0 z-40 bg-slate-100 px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-r border-b border-slate-300 min-w-[120px] whitespace-nowrap">
+              <th className="sticky left-0 top-0 z-40 bg-slate-100 px-2 py-2 text-left text-[10px] font-bold text-slate-600 border-r border-b border-slate-300 min-w-[100px] whitespace-nowrap">
                 姓名 (大班)
               </th>
               {days.map(d => (
-                <th key={d} className="bg-slate-100 px-1 py-3 text-center text-xs font-bold text-slate-600 w-10 min-w-[40px] border-r border-b border-slate-300">
+                <th key={d} className="bg-slate-100 px-0 py-2 text-center text-[10px] font-bold text-slate-600 min-w-[28px] border-r border-b border-slate-300">
                   {d}
                 </th>
               ))}
@@ -52,9 +52,9 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
           <tbody className="bg-white">
             {nurses.map(nurse => (
               <tr key={nurse.id} className="hover:bg-yellow-50/50 transition-colors group">
-                <td className="sticky left-0 z-20 bg-white group-hover:bg-yellow-50 px-4 py-2 border-r border-b border-slate-200 whitespace-nowrap shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                  <div className="font-bold text-slate-900 text-sm">{nurse.name}</div>
-                  <div className="text-[10px] text-slate-500">{nurse.unit} · {nurse.majorShift}</div>
+                <td className="sticky left-0 z-20 bg-white group-hover:bg-yellow-50 px-2 py-1.5 border-r border-b border-slate-200 whitespace-nowrap shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                  <div className="font-bold text-slate-900 text-xs">{nurse.name}</div>
+                  <div className="text-[9px] text-slate-500 leading-none">{nurse.unit}·{nurse.majorShift}</div>
                 </td>
                 {days.map(day => {
                   const shift = requests[nurse.id]?.[day];
@@ -63,16 +63,16 @@ const RequestGrid: React.FC<RequestGridProps> = ({ year, month, nurses, requests
                       key={day} 
                       onClick={() => toggleRequest(nurse.id, day)}
                       className={`
-                        p-1 border-r border-b border-slate-100 text-center cursor-pointer hover:bg-yellow-100 transition-colors
+                        p-0.5 border-r border-b border-slate-100 text-center cursor-pointer hover:bg-yellow-100 transition-colors
                         ${shift === ShiftType.OFF ? 'bg-slate-200' : ''}
                       `}
                     >
                       {shift ? (
-                        <div className="w-8 h-8 mx-auto flex items-center justify-center rounded text-xs font-black text-slate-600">
+                        <div className="w-6 h-6 mx-auto flex items-center justify-center rounded text-[10px] font-black text-slate-600">
                           {shift}
                         </div>
                       ) : (
-                        <div className="w-full h-8"></div>
+                        <div className="w-full h-6"></div>
                       )}
                     </td>
                   );

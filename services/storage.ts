@@ -5,7 +5,7 @@ export const STORAGE_KEYS = {
   ROSTERS: 'nurseai_rosters',
 };
 
-// Initial Mock Data
+// Initial Mock Data with explicit order
 const INITIAL_NURSES: Nurse[] = [
   { id: '1', employeeId: 'N20169', name: '李道民', unit: Unit.U9E, majorShift: MajorShiftType.A },
   { id: '2', employeeId: 'N16913', name: '陳怡樺', unit: Unit.U9E, majorShift: MajorShiftType.A },
@@ -51,8 +51,12 @@ export const saveNurse = (nurse: Nurse): void => {
   localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(nurses));
 };
 
+export const reorderNurses = (nurses: Nurse[]): void => {
+  localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(nurses));
+};
+
 export const importNurses = (data: any[]): void => {
-  // Sanitize data: Ensure every nurse has an ID and required fields, provide defaults for missing optional fields
+  // Directly set the data to maintain the exact order from the import file
   const sanitized = data.map((n, index) => ({
     id: n.id || `imported_${Date.now()}_${index}`,
     name: n.name || '未知姓名',
